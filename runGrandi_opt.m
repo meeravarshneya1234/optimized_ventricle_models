@@ -136,31 +136,27 @@ p.kon_csqn = 100;         % [1/mM/ms]
 
 c.GNa=23;
 c.GNaB = 0.597e-3;    % [mS/uF] 0.897e-3
-c.PCa_ = 0.50*5.4e-4;       % [cm/sec]
 c.GCaB = 5.513e-4;    % [uA/uF] 3
 
-c.GKr_ = 0.035 ;
-c.GKs_ = 0.0035 ;
 c.GK1_ = 0.35 ;
 c.gkp = 2*0.001;
 c.GClCa =0.5* 0.109625;   % [mS/uF]
 c.GClB = 1*9e-3;        % [mS/uF]
-c.IbarNaK = 1.0*1.8;%1.90719;     % [uA/uF]
-c.IbarNCX = 1.0*4.5;      % [uA/uF]5.5 before - 9 in rabbit
 c.ks = 25;                 % [1/ms]
 c.Kleak_ = 5.348e-6 ;
 c.Vmax_SRCaP = 1.0*5.3114e-3;  % [mM/msec] (286 umol/L cytosol/sec)
 c.IbarSLCaP = 0.0673; % IbarSLCaP FEI changed [uA/uF](2.2 umol/L cytosol/sec) jeff 0.093 [uA/uF]
+c.GtoSlow=0.13*0.3*0.964; %endo
+c.GtoFast=0.13*0.3*0.036; %endo
 
-if strcmp(p.celltype,'epi')==1
-    c.GtoSlow=1.0*0.13*0.12; %epi
-    c.GtoFast=1.0*0.13*0.88; %epi0.88
-elseif strcmp(p.celltype,'endo')==1
-    c.GtoSlow=0.13*0.3*0.964; %endo
-    c.GtoFast=0.13*0.3*0.036; %endo
-else
-    fprintf('Invalid cell type entered. Please re-enter cell type and try again.')
-end
+% % Parameters changed in the optimized model
+c.GKs_ = 0.0035*25.02;
+c.GKr_ = 0.035*4.28;
+c.PCa_ = 0.50*5.4e-4*1.06;       % [cm/sec]
+c.IbarNCX = 1.0*4.5*3.69;      % [uA/uF]5.5 before - 9 in rabbit
+c.IbarNaK = 1.0*1.8*4.93;%1.90719;     % [uA/uF]
+c.GNaL = 0.0075*3.4;                % nS/pF
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Step 2:  Define simulation, stimulus, and recording parameters
@@ -234,13 +230,15 @@ ic.Cajo=1.737475e-4;
 ic.Caslo= 1.031812e-4;
 ic.Caio=8.597401e-5;
 ic.V=-8.09763e+1;
+ic.mL=0;
+ic.hL=1;
 y0 = cell2mat(struct2cell(ic))';
 V_ind=find(y0==ic.V); %determine where within state variables, the index of voltage
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Step 4:  Run Simulation 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-odefcn = @dydt_Grandi;
+odefcn = @dydt_Grandi_opt;
 
 statevar_i = y0;
 %%% let model rest for 60 seconds
@@ -290,3 +288,68 @@ plot(t,V,'linewidth',2)
 set(gca,'FontSize',12,'FontWeight','bold')
 xlabel('time (ms)')
 ylabel('Voltage (mV)')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Step 6:  Plot IKs, IKr, ICaL, INaL 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+[m, h, j, d, f, fcaBj, fcaBsl, xtos, ytos, ...
+    xtof, ytof, xkr, xks,RyRr, RyRo, RyRi, NaBj, NaBsl, ...
+    TnCL, TnCHc, TnCHm, CaM, Myoc, Myom,SRB, SLLj, SLLsl,...
+    SLHj, SLHsl, Csqnb, Ca_sr, Naj, Nasl, Nai, Ki, Caj,...
+    Casl, Cai, V,mL,hL] = deal(state_variables{:});
+
+% % % ICaL
+fcaCaMSL=0;
+fcaCaj= 0;
+ibarca_j = c.PCa_*4*(V* p.Frdy* p.FoRT).*(0.341*Caj.*exp(2*V*p.FoRT)-0.341*p.Cao)./(exp(2*V*p.FoRT)-1);
+ibarca_sl = c.PCa_*4*(V*p.Frdy*p.FoRT).*(0.341*Casl.*exp(2*V*p.FoRT)-0.341*p.Cao)./(exp(2*V*p.FoRT)-1);
+ibark = p.pK*(V*p.Frdy*p.FoRT).*(0.75*Ki.*exp(V*p.FoRT)-0.75*p.Ko)./(exp(V*p.FoRT)-1);
+ibarna_j = p.pNa*(V*p.Frdy*p.FoRT).*(0.75*Naj.*exp(V*p.FoRT)-0.75*p.Nao)./(exp(V*p.FoRT)-1);
+ibarna_sl = p.pNa*(V*p.Frdy*p.FoRT).*(0.75*Nasl.*exp(V*p.FoRT)-0.75*p.Nao)./(exp(V*p.FoRT)-1);
+I_Ca_junc = (p.Fjunc_CaL*ibarca_j.*d.*f.*((1-fcaBj)+fcaCaj).*p.Q10CaL^p.Qpow)*0.45*1;
+I_Ca_sl = (p.Fsl_CaL*ibarca_sl.*d.*f.*((1-fcaBsl)+fcaCaMSL).*p.Q10CaL^p.Qpow)*0.45*1;
+I_Ca = I_Ca_junc+I_Ca_sl;
+I_CaK = (ibark.*d.*f.*(p.Fjunc_CaL*(fcaCaj+(1-fcaBj))+p.Fsl_CaL*(fcaCaMSL+(1-fcaBsl)))*p.Q10CaL^p.Qpow)*0.45*1;
+I_CaNa_junc = (p.Fjunc_CaL*ibarna_j.*d.*f.*((1-fcaBj)+fcaCaj)*p.Q10CaL^p.Qpow)*0.45*1;
+I_CaNa_sl = (p.Fsl_CaL*ibarna_sl.*d.*f.*((1-fcaBsl)+fcaCaMSL)*p.Q10CaL^p.Qpow)*.45*1;
+I_CaNa = I_CaNa_junc+I_CaNa_sl;
+ICaL = I_Ca+I_CaK+I_CaNa;
+
+% % % IKr
+pNaK = 0.01833;
+ek = (1/p.FoRT)*log(p.Ko./Ki);	        % [mV]
+gkr = c.GKr_*sqrt(p.Ko/5.4);
+rkr = 1./(1+exp((V+74)/24));
+IKr = gkr.*xkr.*rkr.*(V-ek);
+
+% % % IKs
+eks = (1/p.FoRT)*log((p.Ko+pNaK*p.Nao)./(Ki+pNaK.*Nai));
+gks_junc = c.GKs_ ;   %[mS/uF]
+gks_sl = c.GKs_ ;     %[mS/uF]
+Fjunc = 0.11;
+Fsl = 1-Fjunc;
+I_ks_junc = Fjunc*gks_junc.*xks.^2.*(V-eks);
+I_ks_sl = Fsl.*gks_sl.*xks.^2.*(V-eks);
+IKs = I_ks_junc+I_ks_sl;
+
+% % % INaL
+ENa = ((p.R*p.Temp)/p.Frdy)*log(p.Nao./Nai) ;
+INaL=c.GNaL.*(V-ENa).*mL.*hL;
+
+figure
+plot(t,ICaL,'linewidth',2)
+hold on 
+plot(t,IKr,'linewidth',2)
+plot(t,IKs,'linewidth',2)
+plot(t,INaL,'linewidth',2)
+set(gca,'FontSize',12,'FontWeight','bold')
+xlabel('time (ms)')
+ylabel('current (A/F)')
+legend('ICaL','IKr','IKs','INaL')
+
+x1 = find(t==stim_delay); % find interval where the AP begins
+x2 = find(floor(V)==floor(V(x1))+3 & t > t(x1)+10,1); % and ends
+Area_Ks = trapz(t(x1:x2),IKs(x1:x2));
+Area_Kr = trapz(t(x1:x2),IKr(x1:x2));
+Area_Ca = trapz(t(x1:x2),ICaL(x1:x2));
+Area_NaL = trapz(t(x1:x2),INaL(x1:x2));

@@ -1,8 +1,10 @@
-function deriv = dydt_Grandi(t,y,Id,p,c)
+function deriv = dydt_Grandi_opt(t,y,Id,p,c)
 
 ydot = zeros(size(y));                                    
 
 V = y(39);
+mL = y(40);
+hL = y(41);
 
 % Nernst Potentials
 ena_junc = (1/p.FoRT)*log(p.Nao/y(32));     % [mV]
@@ -26,6 +28,15 @@ I_Na = I_Na_junc+I_Na_sl;
 I_nabk_junc = p.Fjunc*c.GNaB*(V-ena_junc);
 I_nabk_sl = p.Fsl*c.GNaB*(V-ena_sl);
 I_nabk = I_nabk_junc+I_nabk_sl;
+
+% % NaL current 
+mLss=1.0/(1.0+exp((-(V+42.85))/5.264));
+tmL=1.0/(6.765*exp((V+11.64)/34.77)+8.552*exp(-(V+77.42)/5.955));
+dmL=(mLss-mL)/tmL;
+hLss=1.0/(1.0+exp((V+87.61)/7.488));
+dhL=(hLss-hL)/200;
+ENa = ((p.R*p.Temp)/p.Frdy)*log(p.Nao./y(34)) ;
+INaL=c.GNaL*(V-ENa)*mL*hL;
 
 % I_nak: Na/K Pump Current
 sigma = (exp(p.Nao/67.3)-1)/7;
@@ -281,12 +292,14 @@ ydot(38) = -J_serca*p.Vsr/p.Vmyo-J_CaB_cytosol +p.J_ca_slmyo/p.Vmyo*(y(37)-y(38)
 
 % %% Membrane Potential
 % %%
-I_Na_tot = I_Na_tot_junc + I_Na_tot_sl;          % [uA/uF]
+I_Na_tot = I_Na_tot_junc + I_Na_tot_sl + INaL;          % [uA/uF]
 I_Cl_tot = I_ClCa+I_Clbk;                        % [uA/uF]
 I_Ca_tot = I_Ca_tot_junc+I_Ca_tot_sl;
 I_tot = I_Na_tot+I_Cl_tot+I_Ca_tot+I_K_tot;
 %ydot(39) = -(I_Ca_tot+I_K_tot+I_Na_tot-I_app);
 ydot(39) = -(I_tot+Id);
+ydot(40) = dmL; 
+ydot(41) = dhL;
 deriv = ydot ;
 
 return

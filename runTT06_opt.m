@@ -36,33 +36,23 @@ p.Nao = 140000 ;                % uM
 p.Cao = 2000 ;                  % uM
 
 c.GNa_ = 14.838 ;               % nS/pF
-c.PCa_ = 3.980e-5 ;             % cm uF-1 ms-1
 c.GK1_ = 5.405 ;                % nS/pF
-c.GKr_ = 0.153 ;                % nS/pF
-
 p.GpK_ = 0.0146 ;               % nS/pF
 c.GpCa_ = 0.1238 ;              % nS/pF
 c.GNab_ = 2.9e-4 ;              % nS/pF
 c.GCab_ = 5.92e-4 ;             % nS/pF
-
-if strcmp(p.celltype,'endo')==1
-    c.Gto_ = 0.073 ;                % nS/pF
-    c.GKs_ = 0.392 ;                % nS/pF
-elseif strcmp(p.celltype,'mid')==1
-    c.Gto_ = 0.294 ;                % nS/pF
-    c.GKs_ = 0.098 ;                % nS/pF
-elseif strcmp(p.celltype,'epi')==1
-    c.Gto_ = 0.294 ;                % nS/pF
-    c.GKs_ = 0.392 ;                % nS/pF
-else
-    fprintf('Invalid cell type entered. Please re-enter cell type and try again.')
-end
-
+c.Gto_ = 0.073 ;                % nS/pF
 p.pKNa = 0.03 ;                  % relative permeability, Na to K
 
+% % Parameters changed in the optimized model
+c.GKs_ = 0.392*0.41;                % nS/pF
+c.GKr_ = 0.153*2.65;                % nS/pF
+c.PCa_ = 3.980e-5*0.79 ;             % cm uF-1 ms-1
+c.kNaCa = 1000*2.08 ;                 % pA/pF
+c.INaK_ = 2.724*2.67 ;                % pA/pF
+c.GNaL = 0.0075*3.18;                % nS/pF
+
 % Maximum rates of intracellular transport mechanisms
-c.INaK_ = 2.724 ;                % pA/pF
-c.kNaCa = 1000 ;                 % pA/pF
 c.Iup_ = 6.375 ;                 % uM/ms
 
 % % values needed for calculation of NCX current
@@ -114,7 +104,7 @@ PCL = 1000 ;  % Interval bewteen stimuli,[ms]
 stim_delay = 100 ; % Time the first stimulus, [ms]
 stim_dur = 2 ; % Stimulus duration
 stim_amp = 20 ; % Stimulus amplitude 
-nBeats = 100 ; % Number of beats to simulate 
+nBeats = 200 ; % Number of beats to simulate 
 
 stim_starts = stim_delay + PCL*(0:nBeats-1)  ;
 stim_ends = stim_starts + stim_dur ;
@@ -159,6 +149,8 @@ ic.Cass = 0.2381 ;
 ic.CaSR = 3.6426e+003 ;
 ic.Nai = 3.8067e+003 ;
 ic.Ki = 1.2369e+005 ;
+ic.mL=0;
+ic.hL=1;
 
 y0 = cell2mat(struct2cell(ic))';
 V_ind=find(y0==ic.V); %determine where within state variables, the index of voltage
@@ -166,7 +158,7 @@ V_ind=find(y0==ic.V); %determine where within state variables, the index of volt
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Step 4:  Run Simulation 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-odefcn = @dydt_TT06;
+odefcn = @dydt_TT06_opt;
 
 statevar_i = y0;
 %%% let model rest for 60 seconds
@@ -216,3 +208,46 @@ plot(t,V,'linewidth',2)
 set(gca,'FontSize',12,'FontWeight','bold')
 xlabel('time (ms)')
 ylabel('Voltage (mV)')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Step 6:  Plot IKs, IKr, ICaL, INaL 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+[V,m,h,j,d,f,f2,fCass,r,s,xs,xr1,xr2, Rbar_ryr,Cai,Cass,CaSR,Nai,Ki,mL,hL]...
+    = deal(state_variables{:});
+
+% % % ICaL
+ICaL = c.PCa_*d.*f.*f2.*fCass*4*p.F/p.RTF.*(V-15).* ...
+    (0.25*Cai.*exp(2*(V-15)/p.RTF) - p.Cao)./ ...
+    (exp(2*(V-15)/p.RTF) - 1) ;
+
+% % % IKr
+EK = p.RTF*log(p.Ko./Ki) ;
+IKr = c.GKr_*sqrt(p.Ko/5400)*xr1.*xr2.*(V-EK) ;
+
+% % % IKs
+EKs = p.RTF*log((p.Ko + p.pKNa*p.Nao)./(Ki + p.pKNa*Nai)) ;
+IKs = c.GKs_*xs.^2.*(V-EKs) ;
+
+% % % INaL 
+ENa = p.RTF.*log(p.Nao./Nai) ;
+INaL=c.GNaL.*(V-ENa).*mL.*hL;
+
+figure
+plot(t,ICaL,'linewidth',2)
+hold on 
+plot(t,IKr,'linewidth',2)
+plot(t,IKs,'linewidth',2)
+plot(t,INaL,'linewidth',2)
+set(gca,'FontSize',12,'FontWeight','bold')
+xlabel('time (ms)')
+ylabel('current (A/F)')
+legend('ICaL','IKr','IKs','INaL')
+
+x1 = find(t==stim_delay); % find interval where the AP begins
+x2 = find(floor(V)==floor(V(x1))+3 & t > t(x1)+10,1); % and ends
+Area_Ks = trapz(t(x1:x2),IKs(x1:x2));
+Area_Kr = trapz(t(x1:x2),IKr(x1:x2));
+Area_Ca = trapz(t(x1:x2),ICaL(x1:x2));
+Area_NaL = trapz(t(x1:x2),INaL(x1:x2));
+
+

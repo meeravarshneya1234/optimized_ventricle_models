@@ -1,8 +1,8 @@
-function deriv = dydt_TT06(t,statevar,Id,p,c)
+function deriv = dydt_TT06_opt(t,statevar,Id,p,c)
 
 statevarcell = num2cell(statevar) ;
 
-[V,m,h,j,d,f,f2,fCass,r,s,xs,xr1,xr2,Rbar_ryr,Cai,Cass,CaSR,Nai,Ki] = ...
+[V,m,h,j,d,f,f2,fCass,r,s,xs,xr1,xr2,Rbar_ryr,Cai,Cass,CaSR,Nai,Ki,mL,hL] = ...
   deal(statevarcell{:}) ;
 % %%%%%%%%%%%%%%%%%%%%%%%%%
 % %% 
@@ -17,6 +17,8 @@ ECa = 0.5*p.RTF*log(p.Cao/Cai) ;
 EKs = p.RTF*log((p.Ko + p.pKNa*p.Nao)/(Ki + p.pKNa*Nai)) ;
 
 INa = c.GNa_*m^3*h*j*(V - ENa) ;
+INaL = c.GNaL*(V-ENa)*mL*hL;
+
 
 ICa = c.PCa_*d*f*f2*fCass*4*p.F/p.RTF*(V-15)* ...
   (0.25*Cass*exp(2*(V-15)/p.RTF) - p.Cao)/ ...
@@ -49,7 +51,7 @@ INab = c.GNab_*(V-ENa) ;
 ICab = c.GCab_*(V-ECa) ;
 
 Iion = INa + ICa + Ito + IKs + IKr + IK1 + INCX + INaK + ...
-  IpCa + IpK + INab + ICab ;
+  IpCa + IpK + INab + ICab +INaL;
 % %%%%%%%%%%%%%%%%%%%%%%%%%
 % %% 
 % %% compute rate constants to update gates
@@ -86,6 +88,13 @@ tauj = 1/(aj+bj) ;
 
 dhdt = (hinf-h)/tauh ;
 djdt = (jinf-j)/tauj ;
+
+% % NaL current 
+mLss=1.0/(1.0+exp((-(V+42.85))/5.264));
+tmL=1.0/(6.765*exp((V+11.64)/34.77)+8.552*exp(-(V+77.42)/5.955));
+dmL=(mLss-mL)/tmL;
+hLss=1.0/(1.0+exp((V+87.61)/7.488));
+dhL=(hLss-hL)/200;
 
 %%%%%%%%%%%%%%%%%
 % % L-type Ca current
@@ -133,17 +142,8 @@ dfCassdt = (fCassinf-fCass)/taufCass ;
 rinf = 1/(exp((20-V)/6) + 1) ;
 taur = (9.5*exp(-(V+40)^2/1800) + 0.8) ;
 
-switch (p.celltype)
-  case 'endo'
-    sinf = 1/(exp((V+28)/5) + 1) ;
-    taus = (1000*exp(-(V+67)^2/1000) + 8) ;
-  case 'mid'
-    sinf = 1/(exp((V+20)/5) + 1) ;
-    taus = (85*exp(-(V+45)^2/320) + 5/(exp((V-20)/5) + 1) + 3) ;
-  otherwise    % % % epicardial
-    sinf = 1/(exp((V+20)/5) + 1) ;
-    taus = (85*exp(-(V+45)^2/320) + 5/(exp((V-20)/5) + 1) + 3) ;
-end
+sinf = 1/(exp((V+28)/5) + 1) ;
+taus = (1000*exp(-(V+67)^2/1000) + 8) ;
 
 drdt = (rinf-r)/taur ;
 dsdt = (sinf-s)/taus ;
@@ -211,11 +211,11 @@ dCaSR = BSR*(Iup - Ileak - Irel) ;
 % dCass = (-ICa*1e6*p.Acap/(2*p.F*p.Vss) + p.VSR/p.Vss*Irel - p.Vmyo/p.Vss*Ixfer) ;
 % dCaSR = (Iup - Ileak - Irel) ;
 
-dNai = -(INa + 3*INCX + 3*INaK + INab)*1e6*p.Acap/(p.F*p.Vmyo) ;
+dNai = -(INa + 3*INCX + 3*INaK + INab + INaL)*1e6*p.Acap/(p.F*p.Vmyo) ;
 dKi = -(Ito + IKs + IKr + IK1 - 2*INaK + IpK)*1e5*p.Acap/(p.F*p.Vmyo) ;
 
 deriv = [dVdt;dmdt;dhdt;djdt;dddt;dfdt;df2dt;dfCassdt;drdt;dsdt; ...
-  dxsdt;dxr1dt;dxr2dt;dRbar_ryr;dCai;dCass;dCaSR;dNai;dKi] ;
+  dxsdt;dxr1dt;dxr2dt;dRbar_ryr;dCai;dCass;dCaSR;dNai;dKi;dmL;dhL] ;
 
 return
 

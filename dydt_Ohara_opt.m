@@ -1,4 +1,4 @@
-function deriv = dydt_Ohara(t,statevar,Id,p,c)
+function deriv = dydt_Ohara_opt(t,statevar,Id,p,c)
 
 statevarcell = num2cell(statevar) ;
 
