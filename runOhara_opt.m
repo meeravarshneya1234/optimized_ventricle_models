@@ -28,92 +28,6 @@ p.vmyo=0.68*p.vcell;
 p.vnsr=0.0552*p.vcell;
 p.vjsr=0.0048*p.vcell;
 p.vss=0.02*p.vcell;
-%
-%CaMK constants
-p.aCaMK=0.05;
-p.bCaMK=0.00068;
-p.CaMKo=0.05;
-
-%reverse potential constant
-p.PKNa=0.01833;
-
-%INa constants
-p.Ahf=0.99;
-p.Ahs=1.0-p.Ahf;
-
-%INaL constants
-p.thL=200.0;
-
-%Ito constants
-p.delta_epi=1.0;
-if strcmp(p.celltype,'epi')==1
-    p.delta_epi=1.0-(0.95/(1.0+exp((V+70.0)/5.0)));
-end
-
-%ICaL, ICaNa, ICaK constants
-p.Aff=0.6;
-p.tjca=75.0;
-p.Kmn=0.002;
-p.k2n=1000.0;
-p.zca=2.0;
-
-%INaCa_i constants
-p.kna1=15.0;
-p.kna2=5.0;
-p.kna3=88.12;
-p.kasymm=12.5;
-p.wna=6.0e4;
-p.wca=6.0e4;
-p.wnaca=5.0e3;
-p.kcaon=1.5e6;
-p.kcaoff=5.0e3;
-p.qna=0.5224;
-p.qca=0.1670;
-p.zna=1.0;
-
-%INaCa_ss constants
-p.KmCaAct=150.0e-6;
-
-%INaK constants
-p.k1p=949.5;
-p.k1m=182.4;
-p.k2p=687.2;
-p.k2m=39.4;
-p.k3p=1899.0;
-p.k3m=79300.0;
-p.k4p=639.0;
-p.k4m=40.0;
-p.Knai0=9.073;
-p.Knao0=27.78;
-p.delta=-0.1550;
-
-p.Kki=0.5;
-p.Kko=0.3582;
-p.MgADP=0.05;
-p.MgATP=9.8;
-p.Kmgatp=1.698e-7;
-p.H=1.0e-7;
-p.eP=4.2;
-p.Khp=1.698e-7;
-p.Knap=224.0;
-p.Kxkur=292.0;
-
-p.zk=1.0;
-
-%calcium buffer constants
-p.cmdnmax=0.05;
-if strcmp(p.celltype,'epi')==1
-    p.cmdnmax=p.cmdnmax*1.3;
-end
-p.kmcmdn=0.00238;
-p.trpnmax=0.07;
-p.kmtrpn=0.0005;
-p.BSRmax=0.047;
-p.KmBSR=0.00087;
-p.BSLmax=1.124;
-p.KmBSL=0.0087;
-p.csqnmax=10.0;
-p.kmcsqn=0.8;
 
 %jsr constants
 p.bt=4.75;
@@ -121,46 +35,24 @@ p.a_rel=0.5*p.bt;
 
 % computed quantities that do not change during simulation
 c.GNa=75;
-c.GNaL=0.0075;
 c.Gto=0.02;
-c.GKr_=0.046;
-c.GKs_=0.0034;
 c.GK1=0.1908;
-c.Gncx=0.0008;
 c.GKb=0.003;
 c.GpCa=0.0005;
-c.PCa_=0.0001;
-c.Pnak=30;
 
-if  strcmp(p.celltype,'epi')==1
-    c.GNaL=c.GNaL*0.6;
-    c.Gto=c.Gto*4.0;
-    c.GKr_=c.GKr_*1.3;
-    c.GKs_=c.GKs_*1.4;
-    c.GK1=c.GK1*1.2;
-    c.Gncx=c.Gncx*1.1;
-    c.GKb=c.GKb*0.6;
-    c.PCa_=c.PCa_*1.2;
-    c.Pnak=c.Pnak*0.9;
-    
-elseif  strcmp(p.celltype,'mid')==1
-    c.Gto=c.Gto*4.0;
-    c.GKr_=c.GKr_*0.8;
-    c.GK1=c.GK1*1.3;
-    c.Gncx=c.Gncx*1.4;
-    c.PCa_=c.PCa_*2.5;
-    c.Pnak=c.Pnak*0.7;
-    
-end
 c.PNab=3.75e-10;
 c.PCab=2.5e-8;
-
-p.KmCaMK=0.15;
-p.KmCaM=0.0015;
 
 c.SERCA_total = 1 ;
 c.RyR_total = 1 ;
 
+% % Parameters changed in the optimized model
+c.GKs_=0.0034*5.75;
+c.GKr_=0.046*1.00;
+c.PCa_=0.0001*2.01;
+c.Gncx=0.0008*2.95;
+c.Pnak=30*9.12;
+c.GNaL=0.0075*1.00;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Step 2:  Define simulation, stimulus, and recording parameters
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -241,7 +133,7 @@ V_ind=find(y0==ic.V); %determine where within state variables, the index of volt
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Step 4:  Run Simulation 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-odefcn = @dydt_Ohara;
+odefcn = @dydt_Ohara_opt;
 
 statevar_i = y0;
 %%% let model rest for 60 seconds
@@ -291,3 +183,84 @@ plot(t,V,'linewidth',2)
 set(gca,'FontSize',12,'FontWeight','bold')
 xlabel('time (ms)')
 ylabel('Voltage (mV)')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Step 6:  Plot IKs, IKr, ICaL, INaL 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+[V, Nai, Nass, Ki, Kss, Cai, Cass, Cansr, Cajsr, m, hf, hs, j, hsp, jp, mL, hL,...
+    hLp, a, iF, iS, ap, iFp, iSp, d, ff, fs, fcaf, fcas, jca, nca, ffp, fcafp,...
+    xrf, xrs, xs1, xs2, xk1, Jrelnp, Jrelp, CaMKt] = deal(state_variables{:});
+
+% % % ICaL
+KmCaMK=0.15;
+CaMKo=0.05;
+KmCaM=0.0015;
+CaMKb=CaMKo*(1.0-CaMKt)./(1.0+KmCaM./Cass);
+CaMKa=CaMKb+CaMKt;
+vffrt=V*p.F*p.F/(p.R*p.T);
+vfrt=V*p.F/(p.R*p.T);
+Aff=0.6;
+Afs=1.0-Aff;
+f=Aff*ff+Afs*fs;
+Afcaf=0.3+0.6./(1.0+exp((V-10.0)/10.0));
+Afcas=1.0-Afcaf;
+fca=Afcaf.*fcaf+Afcas.*fcas;
+fp=Aff.*ffp+Afs.*fs;
+fcap=Afcaf.*fcafp+Afcas.*fcas;
+PhiCaL=4.0*vffrt.*(Cass.*exp(2.0*vfrt)-0.341*p.Cao)./(exp(2.0*vfrt)-1.0);
+PhiCaNa=1.0*vffrt.*(0.75*Nass.*exp(1.0*vfrt)-0.75*p.Nao)./(exp(1.0*vfrt)-1.0);
+PhiCaK=1.0*vffrt.*(0.75*Kss.*exp(1.0*vfrt)-0.75*p.Ko)./(exp(1.0*vfrt)-1.0);
+PCap=1.1*c.PCa_;
+PCaNa=0.00125*c.PCa_;
+PCaK=3.574e-4*c.PCa_;
+PCaNap=0.00125*PCap;
+PCaKp=3.574e-4*PCap;
+fICaLp=(1.0./(1.0+KmCaMK./CaMKa));
+ICa_L=(1.0-fICaLp).*c.PCa_.*PhiCaL.*d.*(f.*(1.0-nca)+jca.*fca.*nca)+fICaLp*PCap.*PhiCaL.*d.*(fp.*(1.0-nca)+jca.*fcap.*nca);
+ICaNa=(1.0-fICaLp).*PCaNa.*PhiCaNa.*d.*(f.*(1.0-nca)+jca.*fca.*nca)+fICaLp*PCaNap.*PhiCaNa.*d.*(fp.*(1.0-nca)+jca.*fcap.*nca);
+ICaK=(1.0-fICaLp).*PCaK.*PhiCaK.*d.*(f.*(1.0-nca)+jca.*fca.*nca)+fICaLp*PCaKp.*PhiCaK.*d.*(fp.*(1.0-nca)+jca.*fcap.*nca);
+ICaL = ICa_L + ICaNa + ICaK;
+
+% % % IKr
+EK=(p.R*p.T/p.F)*log(p.Ko./Ki);
+Axrf=1.0./(1.0+exp((V+54.81)/38.21));
+Axrs=1.0-Axrf;
+xr=Axrf.*xrf+Axrs.*xrs;
+rkr=1.0./(1.0+exp((V+55.0)/75.0))*1.0./(1.0+exp((V-10.0)/30.0));
+IKr=c.GKr_*sqrt(p.Ko/5.4).*xr.*rkr.*(V-EK);
+
+% % % IKs
+PKNa=0.01833;
+EKs=(p.R*p.T/p.F)*log((p.Ko+PKNa*p.Nao)./(Ki+PKNa.*Nai));
+KsCa=1.0+0.6./(1.0+(3.8e-5./Cai).^1.4);
+IKs=c.GKs_.*KsCa.*xs1.*xs2.*(V-EKs);
+
+% % % INaL 
+ENa=(p.R*p.T/p.F)*log(p.Nao./Nai);
+CaMKo=0.05;
+KmCaM=0.0015;
+CaMKb=CaMKo.*(1.0-CaMKt)./(1.0+KmCaM./Cass);
+CaMKa=CaMKb+CaMKt;
+fINaLp=(1.0./(1.0+KmCaMK./CaMKa));
+INaL=c.GNaL.*(V-ENa).*mL.*((1.0-fINaLp).*hL+fINaLp.*hLp);
+
+figure
+plot(t,ICaL,'linewidth',2)
+hold on
+plot(t,IKr,'linewidth',2)
+plot(t,IKs,'linewidth',2)
+plot(t,INaL,'linewidth',2)
+set(gca,'FontSize',12,'FontWeight','bold')
+xlabel('time (ms)')
+ylabel('current (A/F)')
+legend('ICaL','IKr','IKs','INaL')
+
+x1 = find(t==stim_delay); % find interval where the AP begins
+x2 = find(floor(V)==floor(V(x1))+3 & t > t(x1)+10,1); % and ends
+Area_Ks = trapz(t(x1:x2),IKs(x1:x2));
+Area_Kr = trapz(t(x1:x2),IKr(x1:x2));
+Area_Ca = trapz(t(x1:x2),ICaL(x1:x2));
+Area_NaL = trapz(t(x1:x2),INaL(x1:x2));
+
+IKs_Fraction = Area_Ks/(Area_Ks + Area_Kr);
